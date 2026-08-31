@@ -113,7 +113,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
       GamePhase.substitution =>
         'Cambio de líbero: intercámbialo con el banquillo o, si está en el banquillo, con una ficha de tu cuadrícula.',
       GamePhase.play =>
-        'Completa Defensa → Colocación → Ataque para ceder el turno. Si fallas o usas la misma ficha dos veces seguidas, el rival gana el punto.',
+        'Completa Defensa → Colocación → Ataque para ceder el turno. Si fallas, usas la misma ficha dos veces seguidas o mueves una ficha que ya tiene 4 usos, el rival gana el punto.',
     };
   }
 
@@ -199,6 +199,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                                     child: PuzzleCourt(
                                                       board: _opponent.board,
                                                       inverted: true,
+                                                      showUseCount: isPlay,
                                                       selectedIndex:
                                                           _phase == GamePhase.setup
                                                           ? _opponent.selectedIndex
@@ -223,6 +224,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                                         ),
                                                     child: PuzzleCourt(
                                                       board: _player.board,
+                                                      showUseCount: isPlay,
                                                       selectedIndex:
                                                           _phase == GamePhase.setup
                                                           ? _player.selectedIndex
@@ -264,6 +266,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                               child: PuzzleBench(
                                                 board: _opponent.board,
                                                 inverted: true,
+                                                showUseCount: isPlay,
                                                 selectedIndex:
                                                     _phase == GamePhase.setup
                                                     ? _opponent.selectedIndex
@@ -289,6 +292,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                                   : 1,
                                               child: PuzzleBench(
                                                 board: _player.board,
+                                                showUseCount: isPlay,
                                                 selectedIndex:
                                                     _phase == GamePhase.setup
                                                     ? _player.selectedIndex
@@ -358,6 +362,8 @@ class _PlayerHeader extends StatelessWidget {
         SequenceOutcome.fault => 'Secuencia rota. El rival gana el punto.',
         SequenceOutcome.doubleTouch =>
           'Toque doble. El rival gana el punto.',
+        SequenceOutcome.overuse =>
+          'Ficha agotada (4 usos). El rival gana el punto.',
         _ => 'Esperando turno.',
       };
     }

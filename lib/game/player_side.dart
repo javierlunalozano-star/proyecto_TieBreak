@@ -40,6 +40,12 @@ class PlayerSide {
     final ok = board.countsAs(index, expected);
     final moved = board.trySlide(index);
     if (moved == null) return null;
+    if (moved.isExhausted) {
+      lastOutcome = SequenceOutcome.overuse;
+      rally = RallySequence();
+      return lastOutcome;
+    }
+    moved.useCount++;
     lastOutcome = rally.play(
       ok ? expected : moved.kind,
       tileId: moved.id,

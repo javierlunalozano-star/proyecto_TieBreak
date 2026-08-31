@@ -34,7 +34,7 @@ void main() {
     expect(find.text('Continuar'), findsNothing);
     expect(
       find.text(
-        'Completa Defensa → Colocación → Ataque para ceder el turno. Si fallas o usas la misma ficha dos veces seguidas, el rival gana el punto.',
+        'Completa Defensa → Colocación → Ataque para ceder el turno. Si fallas, usas la misma ficha dos veces seguidas o mueves una ficha que ya tiene 4 usos, el rival gana el punto.',
       ),
       findsOneWidget,
     );

@@ -22,7 +22,7 @@ class PuzzleBoard {
 
   PuzzleBoard({List<PuzzleTile?>? cells, PuzzleTile? bench})
     : cells = List<PuzzleTile?>.from(cells ?? _initialCourt()),
-      bench = bench ?? const PuzzleTile(id: 15, kind: TileKind.libero) {
+      bench = bench ?? PuzzleTile(id: 15, kind: TileKind.libero) {
     assert(this.cells.length == cellCount);
     assert(this.cells.where((c) => c == null).length == 1);
   }

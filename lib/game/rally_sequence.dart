@@ -11,10 +11,15 @@ enum SequenceOutcome {
   fault,
 
   /// La misma ficha se usó en dos toques consecutivos.
-  doubleTouch;
+  doubleTouch,
+
+  /// Se usó una ficha que ya había llegado a 4 usos.
+  overuse;
 
   bool get awardsPointToOpponent =>
-      this == SequenceOutcome.fault || this == SequenceOutcome.doubleTouch;
+      this == SequenceOutcome.fault ||
+      this == SequenceOutcome.doubleTouch ||
+      this == SequenceOutcome.overuse;
 }
 
 /// Secuencia de juego: defensa, colocación, ataque.

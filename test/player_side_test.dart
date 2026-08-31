@@ -27,4 +27,25 @@ void main() {
     expect(side.tryPlayMove(14), SequenceOutcome.progress);
     expect(side.tryPlayMove(15), SequenceOutcome.doubleTouch);
   });
+
+  test('usar una ficha con 4 usos es falta por agotamiento', () {
+    final side = PlayerSide(name: 'A');
+    side.prepareRally();
+    expect(side.board.trySwap(4, 14), isTrue);
+    final tile = side.board.cells[14]!;
+    tile.useCount = 4;
+    expect(side.tryPlayMove(14), SequenceOutcome.overuse);
+    expect(tile.useCount, 4);
+    expect(side.rally.expected, TileKind.defensa);
+  });
+
+  test('cada deslizamiento válido incrementa el contador de la ficha', () {
+    final side = PlayerSide(name: 'A');
+    side.prepareRally();
+    expect(side.board.trySwap(4, 14), isTrue);
+    final tile = side.board.cells[14]!;
+    expect(tile.useCount, 0);
+    expect(side.tryPlayMove(14), SequenceOutcome.progress);
+    expect(tile.useCount, 1);
+  });
 }

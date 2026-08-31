@@ -13,12 +13,14 @@ class PuzzleCourt extends StatelessWidget {
     required this.onCellTap,
     this.selectedIndex,
     this.inverted = false,
+    this.showUseCount = false,
   });
 
   final PuzzleBoard board;
   final ValueChanged<int> onCellTap;
   final int? selectedIndex;
   final bool inverted;
+  final bool showUseCount;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +40,7 @@ class PuzzleCourt extends StatelessWidget {
           selected: selectedIndex == index,
           zone: board.isLiberoZone(index),
           inverted: inverted,
+          showUseCount: showUseCount,
           onTap: () => onCellTap(index),
         );
       },
@@ -52,12 +55,14 @@ class PuzzleBench extends StatelessWidget {
     required this.onCellTap,
     this.selectedIndex,
     this.inverted = false,
+    this.showUseCount = false,
   });
 
   final PuzzleBoard board;
   final ValueChanged<int> onCellTap;
   final int? selectedIndex;
   final bool inverted;
+  final bool showUseCount;
 
   @override
   Widget build(BuildContext context) {
@@ -92,6 +97,7 @@ class PuzzleBench extends StatelessWidget {
                     selected: selectedIndex == PuzzleBoard.benchIndex,
                     zone: false,
                     inverted: inverted,
+                    showUseCount: showUseCount,
                     onTap: () => onCellTap(PuzzleBoard.benchIndex),
                   ),
                 ),
@@ -111,12 +117,14 @@ class _Cell extends StatelessWidget {
     required this.zone,
     required this.onTap,
     this.inverted = false,
+    this.showUseCount = false,
   });
 
   final PuzzleTile? tile;
   final bool selected;
   final bool zone;
   final bool inverted;
+  final bool showUseCount;
   final VoidCallback onTap;
 
   @override
@@ -152,6 +160,7 @@ class _Cell extends StatelessWidget {
                       tile: tile!,
                       selected: selected,
                       inverted: inverted,
+                      showUseCount: showUseCount,
                     ),
                   ),
                 ),
@@ -166,15 +175,18 @@ class _Token extends StatelessWidget {
     required this.tile,
     required this.selected,
     this.inverted = false,
+    this.showUseCount = false,
   });
 
   final PuzzleTile tile;
   final bool selected;
   final bool inverted;
+  final bool showUseCount;
 
   @override
   Widget build(BuildContext context) {
     final look = TileLook.of(tile.kind);
+    final exhausted = tile.isExhausted;
     return RotatedBox(
       quarterTurns: inverted ? 2 : 0,
       child: Material(
@@ -188,21 +200,67 @@ class _Token extends StatelessWidget {
                 ? Border.all(color: look.onColor, width: 3)
                 : Border.all(color: Colors.black.withValues(alpha: 0.12)),
           ),
-          child: Center(
-            child: FittedBox(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Text(
-                  tile.kind.initials,
-                  style: TextStyle(
-                    color: look.onColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    letterSpacing: 1,
+          child: Stack(
+            children: [
+              Center(
+                child: FittedBox(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text(
+                      tile.kind.initials,
+                      style: TextStyle(
+                        color: look.onColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        letterSpacing: 1,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+              if (showUseCount)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: _UseCountBadge(
+                    count: tile.useCount,
+                    exhausted: exhausted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UseCountBadge extends StatelessWidget {
+  const _UseCountBadge({
+    required this.count,
+    required this.exhausted,
+  });
+
+  final int count;
+  final bool exhausted;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: exhausted ? const Color(0xFFC62828) : Colors.black.withValues(alpha: 0.72),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(3),
+        child: Text(
+          '$count',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            height: 1,
           ),
         ),
       ),

@@ -31,6 +31,10 @@ void main() {
     expect(rally.expected, TileKind.defensa);
   });
 
+  test('agotamiento de ficha concede el punto al rival', () {
+    expect(SequenceOutcome.overuse.awardsPointToOpponent, isTrue);
+  });
+
   test('fichas distintas pueden seguir la secuencia', () {
     final rally = RallySequence();
     expect(
