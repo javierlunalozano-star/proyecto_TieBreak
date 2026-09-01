@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'puzzle_tile.dart';
 import 'tile_kind.dart';
 
@@ -21,13 +23,36 @@ class PuzzleBoard {
   PuzzleTile bench;
 
   PuzzleBoard({List<PuzzleTile?>? cells, PuzzleTile? bench})
-    : cells = List<PuzzleTile?>.from(cells ?? _initialCourt()),
+    : cells = List<PuzzleTile?>.from(cells ?? _orderedCourt()),
       bench = bench ?? PuzzleTile(id: 15, kind: TileKind.libero) {
     assert(this.cells.length == cellCount);
     assert(this.cells.where((c) => c == null).length == 1);
   }
 
-  static List<PuzzleTile?> _initialCourt() {
+  /// Dos tableros con el mismo barajado, uno rotado 180° para el jugador de enfrente.
+  static (PuzzleBoard, PuzzleBoard) shuffledPair([math.Random? random]) {
+    final rng = random ?? math.Random();
+    final first = PuzzleBoard(cells: _shuffledCourt(rng));
+    return (first, first.rotated180());
+  }
+
+  /// Índice de la casilla opuesta (rotación 180° en el 4x4).
+  static int rotatedIndex(int index) => cellCount - 1 - index;
+
+  PuzzleBoard rotated180() {
+    var id = 0;
+    final rotated = List<PuzzleTile?>.generate(cellCount, (i) {
+      final src = cells[rotatedIndex(i)];
+      if (src == null) return null;
+      return PuzzleTile(id: id++, kind: src.kind);
+    });
+    return PuzzleBoard(
+      cells: rotated,
+      bench: PuzzleTile(id: 15, kind: bench.kind),
+    );
+  }
+
+  static List<PuzzleTile> _courtTiles() {
     final tiles = <PuzzleTile>[];
     var id = 0;
     for (final kind in courtKinds) {
@@ -35,7 +60,15 @@ class PuzzleBoard {
         tiles.add(PuzzleTile(id: id++, kind: kind));
       }
     }
-    return [...tiles, null];
+    return tiles;
+  }
+
+  static List<PuzzleTile?> _orderedCourt() => [..._courtTiles(), null];
+
+  static List<PuzzleTile?> _shuffledCourt(math.Random rng) {
+    final cells = _orderedCourt();
+    cells.shuffle(rng);
+    return cells;
   }
 
   int get emptyIndex => cells.indexOf(null);

@@ -11,6 +11,7 @@ void main() {
 
     expect(find.text('Jugador 2'), findsOneWidget);
     expect(find.text('Jugador 1'), findsOneWidget);
+    expect(find.byType(CourtScoreboard), findsOneWidget);
     expect(find.text('DEF'), findsNWidgets(10));
     expect(find.text('LÍB'), findsNWidgets(2));
     expect(find.text('Banquillo'), findsNWidgets(2));
@@ -25,13 +26,22 @@ void main() {
     await tester.pump();
 
     expect(find.text('Empezar juego'), findsNothing);
-    expect(find.text('Continuar'), findsOneWidget);
+    expect(find.text('Continuar'), findsNothing);
+    expect(find.text('Listo'), findsNWidgets(2));
     expect(find.textContaining('Cambio de líbero'), findsOneWidget);
 
-    await tester.tap(find.text('Continuar'));
+    await tester.tap(find.text('Listo').first);
+    await tester.pump();
+    expect(
+      find.textContaining('Cambio de líbero'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('no se puede deshacer'), findsOneWidget);
+
+    await tester.tap(find.text('Listo').last);
     await tester.pump();
 
-    expect(find.text('Continuar'), findsNothing);
+    expect(find.text('Listo'), findsNothing);
     expect(
       find.text(
         'Completa Defensa → Colocación → Ataque para ceder el turno. Si fallas, usas la misma ficha dos veces seguidas o mueves una ficha que ya tiene 4 usos, el rival gana el punto.',

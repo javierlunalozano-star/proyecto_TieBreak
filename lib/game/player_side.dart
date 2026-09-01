@@ -2,16 +2,17 @@ import 'puzzle_board.dart';
 import 'rally_sequence.dart';
 
 class PlayerSide {
-  PlayerSide({required this.name})
-    : board = PuzzleBoard(),
+  PlayerSide({required this.name, PuzzleBoard? board})
+    : board = board ?? PuzzleBoard(),
       rally = RallySequence();
 
   final String name;
   final PuzzleBoard board;
   RallySequence rally;
-  int score = 0;
+  int score = 10;
   int? selectedIndex;
   SequenceOutcome? lastOutcome;
+  bool ready = false;
 
   void onSetupTap(int index) {
     if (index == PuzzleBoard.benchIndex || board.slotHasLibero(index)) {
@@ -27,8 +28,11 @@ class PlayerSide {
     }
   }
 
-  void onSubstitutionTap(int index) {
-    board.tryLiberoSubstitution(index);
+  bool onSubstitutionTap(int index) {
+    if (ready) return false;
+    final done = board.tryLiberoSubstitution(index);
+    if (done) ready = true;
+    return done;
   }
 
   SequenceOutcome? tryPlayMove(int index) {
@@ -51,6 +55,15 @@ class PlayerSide {
       tileId: moved.id,
     );
     return lastOutcome;
+  }
+
+  void beginSubstitution() {
+    selectedIndex = null;
+    ready = false;
+  }
+
+  void confirmReady() {
+    ready = true;
   }
 
   void prepareRally() {

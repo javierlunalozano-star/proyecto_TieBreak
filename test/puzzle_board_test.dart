@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tiebreakvolleyball/game/puzzle_board.dart';
 import 'package:tiebreakvolleyball/game/tile_kind.dart';
@@ -105,5 +107,40 @@ void main() {
     expect(board.countsAs(14, TileKind.defensa), isTrue);
     expect(board.countsAs(14, TileKind.ataque), isTrue);
     expect(board.countsAs(11, TileKind.defensa), isTrue);
+  });
+
+  test('un par barajado es el mismo tablero rotado 180°', () {
+    final (player, opponent) = PuzzleBoard.shuffledPair(Random(42));
+    expect(player.bench.kind, TileKind.libero);
+    expect(opponent.bench.kind, TileKind.libero);
+    expect(player.cells.where((c) => c == null).length, 1);
+    expect(opponent.cells.where((c) => c == null).length, 1);
+
+    for (var i = 0; i < PuzzleBoard.cellCount; i++) {
+      expect(
+        opponent.cells[i]?.kind,
+        player.cells[PuzzleBoard.rotatedIndex(i)]?.kind,
+      );
+    }
+
+    for (final kind in PuzzleBoard.courtKinds) {
+      expect(
+        player.cells.where((c) => c?.kind == kind).length,
+        PuzzleBoard.tilesPerKind,
+      );
+      expect(
+        opponent.cells.where((c) => c?.kind == kind).length,
+        PuzzleBoard.tilesPerKind,
+      );
+    }
+  });
+
+  test('el barajado no deja el orden canónico', () {
+    final ordered = PuzzleBoard();
+    final (shuffled, _) = PuzzleBoard.shuffledPair(Random(7));
+    expect(
+      shuffled.cells.map((c) => c?.kind),
+      isNot(ordered.cells.map((c) => c?.kind)),
+    );
   });
 }

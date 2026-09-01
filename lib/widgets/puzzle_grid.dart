@@ -75,20 +75,13 @@ class PuzzleBench extends StatelessWidget {
         return Center(
           child: FittedBox(
             fit: BoxFit.contain,
-            child: Row(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                RotatedBox(
-                  quarterTurns: inverted ? 3 : 1,
-                  child: Text(
-                    'Banquillo',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
+                if (inverted) ...[
+                  _benchLabel(context),
+                  const SizedBox(height: 6),
+                ],
                 SizedBox(
                   width: cell,
                   height: cell,
@@ -96,16 +89,34 @@ class PuzzleBench extends StatelessWidget {
                     tile: board.bench,
                     selected: selectedIndex == PuzzleBoard.benchIndex,
                     zone: false,
+                    sideline: true,
                     inverted: inverted,
                     showUseCount: showUseCount,
                     onTap: () => onCellTap(PuzzleBoard.benchIndex),
                   ),
                 ),
+                if (!inverted) ...[
+                  const SizedBox(height: 6),
+                  _benchLabel(context),
+                ],
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _benchLabel(BuildContext context) {
+    return RotatedBox(
+      quarterTurns: inverted ? 2 : 0,
+      child: Text(
+        'Banquillo',
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
@@ -118,6 +129,7 @@ class _Cell extends StatelessWidget {
     required this.onTap,
     this.inverted = false,
     this.showUseCount = false,
+    this.sideline = false,
   });
 
   final PuzzleTile? tile;
@@ -125,20 +137,24 @@ class _Cell extends StatelessWidget {
   final bool zone;
   final bool inverted;
   final bool showUseCount;
+  final bool sideline;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     const radius = CourtLook.cellRadius;
-    final background = zone ? TileLook.liberoZone : CourtLook.cell;
+    final background = zone
+        ? TileLook.liberoZone
+        : (sideline ? CourtLook.blue : CourtLook.cell);
+    final hover = sideline ? CourtLook.sidelineHover : CourtLook.cellHover;
     return Material(
       color: background,
       borderRadius: BorderRadius.circular(radius),
       child: InkWell(
         onTap: onTap,
-        hoverColor: CourtLook.cellHover,
-        highlightColor: CourtLook.cellHover.withValues(alpha: 0.65),
-        splashColor: CourtLook.cellHover.withValues(alpha: 0.45),
+        hoverColor: hover,
+        highlightColor: hover.withValues(alpha: 0.65),
+        splashColor: hover.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(radius),
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -270,11 +286,16 @@ class _UseCountBadge extends StatelessWidget {
 
 /// Apariencia por tipo. Al añadir un [TileKind], completar el `switch`.
 class CourtLook {
-  static const Color blue = Color(0xFF1B4F8A);
-  static const Color cell = Color(0xFF16467C);
-  static const Color cellHover = Color(0xFF2E6FB4);
+  static const Color blue = Color(0xFF005FA9);
+  static const Color cell = Color(0xFFC96A38);
+  static const Color cellHover = Color(0xFFD67C4C);
+  static const Color sidelineHover = Color(0xFF2E7BC4);
   static const double lineWidth = 5;
-  static const double netHeight = 96;
+  static const double netHeight = 48;
+  static const double scoreboardHeight = 96;
+  static const double scoreboardNameBand = 18;
+  static const double scoreboardBlockHeight =
+      scoreboardHeight + 2 * scoreboardNameBand;
   static const double cellGap = 4;
   static const double cellRadius = 10;
 }

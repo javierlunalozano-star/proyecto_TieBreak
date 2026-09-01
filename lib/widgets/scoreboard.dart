@@ -8,72 +8,120 @@ class CourtScoreboard extends StatelessWidget {
     super.key,
     required this.leftScore,
     required this.rightScore,
+    this.leftName,
+    this.rightName,
   });
 
   final int leftScore;
   final int rightScore;
+  final String? leftName;
+  final String? rightName;
 
   static const double _thickness = 44;
 
   @override
   Widget build(BuildContext context) {
+    final nameStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+      color: Colors.white,
+      fontWeight: FontWeight.bold,
+      height: 1.1,
+    );
     return SizedBox(
-      height: CourtLook.netHeight,
+      height: CourtLook.scoreboardBlockHeight,
       width: double.infinity,
-      child: Center(
-        child: RotatedBox(
-          quarterTurns: 1,
-          child: SizedBox(
-            width: CourtLook.netHeight,
-            height: _thickness,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF6D6D6D),
-                    Color(0xFF2A2A2A),
-                    Color(0xFF454545),
-                  ],
-                  stops: [0.0, 0.45, 1.0],
+      child: Column(
+        children: [
+          SizedBox(
+            height: CourtLook.scoreboardNameBand,
+            child: Center(
+              child: RotatedBox(
+                quarterTurns: 2,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    leftName ?? '',
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    style: nameStyle,
+                  ),
                 ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x66000000),
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-                border: Border.all(color: const Color(0xFFB0B0B0), width: 1.2),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(3),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0A0A0A),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: const Color(0xFF1F1F1F)),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(child: _ScoreLane(score: leftScore)),
-                        const _Colon(),
-                        Expanded(child: _ScoreLane(score: rightScore)),
+            ),
+          ),
+          SizedBox(
+            height: CourtLook.scoreboardHeight,
+            width: double.infinity,
+            child: Center(
+              child: RotatedBox(
+                quarterTurns: 1,
+                child: SizedBox(
+                  width: CourtLook.scoreboardHeight,
+                  height: _thickness,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFF6D6D6D),
+                          Color(0xFF2A2A2A),
+                          Color(0xFF454545),
+                        ],
+                        stops: [0.0, 0.45, 1.0],
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x66000000),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
                       ],
+                      border: Border.all(color: const Color(0xFFB0B0B0), width: 1.2),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(3),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A0A0A),
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(color: const Color(0xFF1F1F1F)),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(child: _ScoreLane(score: leftScore)),
+                              const _Colon(),
+                              Expanded(child: _ScoreLane(score: rightScore)),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
+          SizedBox(
+            height: CourtLook.scoreboardNameBand,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  rightName ?? '',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  style: nameStyle,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import 'game/game_phase.dart';
 import 'game/player_side.dart';
+import 'game/puzzle_board.dart';
 import 'game/rally_sequence.dart';
 import 'widgets/puzzle_grid.dart';
 import 'widgets/scoreboard.dart';
@@ -42,13 +44,23 @@ class _PuzzlePageState extends State<PuzzlePage> {
   late final PlayerSide _player;
   GamePhase _phase = GamePhase.setup;
   late PlayerSide _active;
+  String? _sidelineMessage;
+  PlayerSide? _plusOneSide;
+  Timer? _plusOneTimer;
 
   @override
   void initState() {
     super.initState();
-    _opponent = PlayerSide(name: 'Jugador 2');
-    _player = PlayerSide(name: 'Jugador 1');
+    final boards = PuzzleBoard.shuffledPair();
+    _player = PlayerSide(name: 'Jugador 1', board: boards.$1);
+    _opponent = PlayerSide(name: 'Jugador 2', board: boards.$2);
     _active = _player;
+  }
+
+  @override
+  void dispose() {
+    _plusOneTimer?.cancel();
+    super.dispose();
   }
 
   PlayerSide _other(PlayerSide side) =>
@@ -61,16 +73,24 @@ class _PuzzlePageState extends State<PuzzlePage> {
         _player.prepareRally();
         _active = _player;
       }
-      _opponent.selectedIndex = null;
-      _player.selectedIndex = null;
+      _opponent.beginSubstitution();
+      _player.beginSubstitution();
       _phase = GamePhase.substitution;
     });
   }
 
-  void _continueToPlay() {
+  void _confirmReady(PlayerSide side) {
+    if (side.ready) return;
     setState(() {
-      _phase = GamePhase.play;
+      side.confirmReady();
+      _advanceIfBothReady();
     });
+  }
+
+  void _advanceIfBothReady() {
+    if (_player.ready && _opponent.ready) {
+      _phase = GamePhase.play;
+    }
   }
 
   void _onCellTap(PlayerSide side, int index) {
@@ -80,7 +100,11 @@ class _PuzzlePageState extends State<PuzzlePage> {
     }
 
     if (_phase == GamePhase.substitution) {
-      setState(() => side.onSubstitutionTap(index));
+      setState(() {
+        if (side.onSubstitutionTap(index)) {
+          _advanceIfBothReady();
+        }
+      });
       return;
     }
 
@@ -89,14 +113,31 @@ class _PuzzlePageState extends State<PuzzlePage> {
     setState(() {
       final outcome = side.tryPlayMove(index);
       if (outcome == SequenceOutcome.completed) {
+        _showSidelineMessage('Ataque del ${side.name}');
         _passTurn(side);
       } else if (outcome != null && outcome.awardsPointToOpponent) {
-        _other(side).score++;
-        _passTurn(side);
-        _opponent.selectedIndex = null;
-        _player.selectedIndex = null;
+        final scorer = _other(side);
+        scorer.score++;
+        _showPlusOne(scorer);
+        side.rally = RallySequence();
+        _active = side;
+        _opponent.beginSubstitution();
+        _player.beginSubstitution();
         _phase = GamePhase.substitution;
       }
+    });
+  }
+
+  void _showSidelineMessage(String text) {
+    _sidelineMessage = text;
+  }
+
+  void _showPlusOne(PlayerSide side) {
+    _plusOneTimer?.cancel();
+    _plusOneSide = side;
+    _plusOneTimer = Timer(const Duration(seconds: 1), () {
+      if (!mounted) return;
+      setState(() => _plusOneSide = null);
     });
   }
 
@@ -111,7 +152,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
       GamePhase.setup =>
         'Organiza las fichas de la cuadrícula. El líbero no se puede mover en esta fase.',
       GamePhase.substitution =>
-        'Cambio de líbero: intercámbialo con el banquillo o, si está en el banquillo, con una ficha de tu cuadrícula.',
+        'Cambio de líbero: un único cambio o pulsa Listo. Esa decisión no se puede deshacer.',
       GamePhase.play =>
         'Completa Defensa → Colocación → Ataque para ceder el turno. Si fallas, usas la misma ficha dos veces seguidas o mueves una ficha que ya tiene 4 usos, el rival gana el punto.',
     };
@@ -121,6 +162,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
   Widget build(BuildContext context) {
     final isSetup = _phase == GamePhase.setup;
     final isPlay = _phase == GamePhase.play;
+    final isSubstitution = _phase == GamePhase.substitution;
     return Scaffold(
       appBar: AppBar(
         title: const Text('TieBreak'),
@@ -148,19 +190,24 @@ class _PuzzlePageState extends State<PuzzlePage> {
                     child: Column(
                       children: [
                         _PlayerHeader(
-                          side: _opponent,
                           phase: _phase,
                           locked: isPlay && !identical(_active, _opponent),
                         ),
                         Expanded(
                           child: LayoutBuilder(
                             builder: (context, constraints) {
-                              const benchW = 88.0;
+                              const benchW = 108.0;
                               const benchGap = 8.0;
+                              const msgW = 44.0;
                               const border = CourtLook.lineWidth;
                               const netH = CourtLook.netHeight;
                               final side = math.min(
-                                constraints.maxWidth - benchW - benchGap - 2 * border,
+                                constraints.maxWidth -
+                                    benchW -
+                                    benchGap -
+                                    msgW -
+                                    benchGap -
+                                    2 * border,
                                 (constraints.maxHeight - netH - 2 * border) / 2,
                               );
                               if (side <= 0) {
@@ -168,102 +215,150 @@ class _PuzzlePageState extends State<PuzzlePage> {
                               }
                               final fieldH = 2 * side + netH + 2 * border;
                               final fieldW = side + 2 * border;
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    child: Center(
-                                      child: SizedBox(
-                                        width: fieldW,
-                                        height: fieldH,
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            border: Border.all(
-                                              color: Colors.white,
-                                              width: border,
-                                            ),
+                              final scoreboardTop = border +
+                                  side +
+                                  netH / 2 -
+                                  CourtLook.scoreboardBlockHeight / 2;
+                              return Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: msgW,
+                                      height: fieldH,
+                                      child: _SidelineBoard(
+                                        message: _sidelineMessage,
+                                      ),
+                                    ),
+                                    const SizedBox(width: benchGap),
+                                    SizedBox(
+                                      width: fieldW,
+                                      height: fieldH,
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color: CourtLook.cell,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: border,
                                           ),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(border),
-                                            child: Column(
-                                              children: [
-                                                SizedBox(
-                                                  width: side,
-                                                  height: side,
-                                                  child: _LockedBoard(
-                                                    inverted: true,
-                                                    locked: isPlay &&
-                                                        !identical(
-                                                          _active,
-                                                          _opponent,
-                                                        ),
-                                                    child: PuzzleCourt(
-                                                      board: _opponent.board,
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(border),
+                                          child: Column(
+                                            children: [
+                                              SizedBox(
+                                                width: side,
+                                                height: side,
+                                                child: Stack(
+                                                  children: [
+                                                    Positioned.fill(
+                                                      child: _LockedBoard(
                                                       inverted: true,
-                                                      showUseCount: isPlay,
-                                                      selectedIndex:
-                                                          _phase == GamePhase.setup
-                                                          ? _opponent.selectedIndex
-                                                          : null,
-                                                      onCellTap: (index) =>
-                                                          _onCellTap(
-                                                        _opponent,
-                                                        index,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                                const VolleyballNet(),
-                                                SizedBox(
-                                                  width: side,
-                                                  height: side,
-                                                  child: _LockedBoard(
-                                                    locked: isPlay &&
-                                                        !identical(
-                                                          _active,
-                                                          _player,
+                                                      locked: isPlay &&
+                                                          !identical(
+                                                            _active,
+                                                            _opponent,
+                                                          ),
+                                                      frozen: isSubstitution &&
+                                                          _opponent.ready,
+                                                      child: PuzzleCourt(
+                                                        board: _opponent.board,
+                                                        inverted: true,
+                                                        showUseCount: isPlay,
+                                                        selectedIndex:
+                                                            _phase ==
+                                                                GamePhase.setup
+                                                            ? _opponent
+                                                                .selectedIndex
+                                                            : null,
+                                                        onCellTap: (index) =>
+                                                            _onCellTap(
+                                                          _opponent,
+                                                          index,
                                                         ),
-                                                    child: PuzzleCourt(
-                                                      board: _player.board,
-                                                      showUseCount: isPlay,
-                                                      selectedIndex:
-                                                          _phase == GamePhase.setup
-                                                          ? _player.selectedIndex
-                                                          : null,
-                                                      onCellTap: (index) =>
-                                                          _onCellTap(
-                                                        _player,
-                                                        index,
+                                                      ),
                                                       ),
                                                     ),
-                                                  ),
+                                                    if (identical(
+                                                      _plusOneSide,
+                                                      _opponent,
+                                                    ))
+                                                      const Positioned.fill(
+                                                        child: _PlusOneBurst(
+                                                          inverted: true,
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
-                                              ],
-                                            ),
+                                              ),
+                                              const VolleyballNet(),
+                                              SizedBox(
+                                                width: side,
+                                                height: side,
+                                                child: Stack(
+                                                  children: [
+                                                    Positioned.fill(
+                                                      child: _LockedBoard(
+                                                      locked: isPlay &&
+                                                          !identical(
+                                                            _active,
+                                                            _player,
+                                                          ),
+                                                      frozen: isSubstitution &&
+                                                          _player.ready,
+                                                      child: PuzzleCourt(
+                                                        board: _player.board,
+                                                        showUseCount: isPlay,
+                                                        selectedIndex:
+                                                            _phase ==
+                                                                GamePhase.setup
+                                                            ? _player
+                                                                .selectedIndex
+                                                            : null,
+                                                        onCellTap: (index) =>
+                                                            _onCellTap(
+                                                          _player,
+                                                          index,
+                                                        ),
+                                                      ),
+                                                      ),
+                                                    ),
+                                                    if (identical(
+                                                      _plusOneSide,
+                                                      _player,
+                                                    ))
+                                                      const Positioned.fill(
+                                                        child: _PlusOneBurst(),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: benchGap),
-                                  SizedBox(
-                                    width: benchW,
-                                    height: fieldH,
-                                    child: Column(
-                                      children: [
-                                        const SizedBox(height: border),
-                                        Expanded(
-                                          child: AbsorbPointer(
-                                            absorbing: isPlay &&
-                                                !identical(_active, _opponent),
-                                            child: Opacity(
-                                              opacity: isPlay &&
-                                                      !identical(
-                                                        _active,
-                                                        _opponent,
-                                                      )
-                                                  ? 0.4
-                                                  : 1,
-                                              child: PuzzleBench(
+                                    const SizedBox(width: benchGap),
+                                    SizedBox(
+                                      width: benchW,
+                                      height: fieldH,
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Positioned(
+                                            top: border,
+                                            left: 0,
+                                            right: 0,
+                                            height: side,
+                                            child: _BenchLane(
+                                              inverted: true,
+                                              locked: isPlay &&
+                                                  !identical(_active, _opponent),
+                                              showReady: isSubstitution,
+                                              ready: _opponent.ready,
+                                              onReady: () =>
+                                                  _confirmReady(_opponent),
+                                              bench: PuzzleBench(
                                                 board: _opponent.board,
                                                 inverted: true,
                                                 showUseCount: isPlay,
@@ -272,25 +367,26 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                                     ? _opponent.selectedIndex
                                                     : null,
                                                 onCellTap: (index) =>
-                                                    _onCellTap(_opponent, index),
+                                                    _onCellTap(
+                                                  _opponent,
+                                                  index,
+                                                ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                        CourtScoreboard(
-                                          leftScore: _opponent.score,
-                                          rightScore: _player.score,
-                                        ),
-                                        Expanded(
-                                          child: AbsorbPointer(
-                                            absorbing: isPlay &&
-                                                !identical(_active, _player),
-                                            child: Opacity(
-                                              opacity: isPlay &&
-                                                      !identical(_active, _player)
-                                                  ? 0.4
-                                                  : 1,
-                                              child: PuzzleBench(
+                                          Positioned(
+                                            bottom: border,
+                                            left: 0,
+                                            right: 0,
+                                            height: side,
+                                            child: _BenchLane(
+                                              locked: isPlay &&
+                                                  !identical(_active, _player),
+                                              showReady: isSubstitution,
+                                              ready: _player.ready,
+                                              onReady: () =>
+                                                  _confirmReady(_player),
+                                              bench: PuzzleBench(
                                                 board: _player.board,
                                                 showUseCount: isPlay,
                                                 selectedIndex:
@@ -302,18 +398,28 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                               ),
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(height: border),
-                                      ],
+                                          Positioned(
+                                            top: scoreboardTop,
+                                            left: 0,
+                                            right: 0,
+                                            height: CourtLook.scoreboardBlockHeight,
+                                            child: CourtScoreboard(
+                                              leftScore: _opponent.score,
+                                              rightScore: _player.score,
+                                              leftName: _opponent.name,
+                                              rightName: _player.name,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               );
                             },
                           ),
                         ),
                         _PlayerHeader(
-                          side: _player,
                           phase: _phase,
                           locked: isPlay && !identical(_active, _player),
                         ),
@@ -329,13 +435,6 @@ class _PuzzlePageState extends State<PuzzlePage> {
                   child: const Text('Empezar juego'),
                 ),
               ],
-              if (_phase == GamePhase.substitution) ...[
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: _continueToPlay,
-                  child: const Text('Continuar'),
-                ),
-              ],
             ],
           ),
         ),
@@ -344,71 +443,119 @@ class _PuzzlePageState extends State<PuzzlePage> {
   }
 }
 
+class _BenchLane extends StatelessWidget {
+  const _BenchLane({
+    required this.bench,
+    required this.locked,
+    this.inverted = false,
+    this.showReady = false,
+    this.ready = false,
+    this.onReady,
+  });
+
+  final Widget bench;
+  final bool locked;
+  final bool inverted;
+  final bool showReady;
+  final bool ready;
+  final VoidCallback? onReady;
+
+  @override
+  Widget build(BuildContext context) {
+    final blocked = locked || ready;
+    final readyButton = showReady
+        ? _SubstitutionReadyButton(
+            inverted: inverted,
+            ready: ready,
+            onPressed: onReady,
+          )
+        : null;
+    final body = AbsorbPointer(
+      absorbing: blocked,
+      child: Opacity(
+        opacity: blocked ? 0.4 : 1,
+        child: bench,
+      ),
+    );
+    return Column(
+      children: [
+        if (inverted && readyButton != null) readyButton,
+        Expanded(child: body),
+        if (!inverted && readyButton != null) readyButton,
+      ],
+    );
+  }
+}
+
+class _SubstitutionReadyButton extends StatelessWidget {
+  const _SubstitutionReadyButton({
+    required this.ready,
+    required this.inverted,
+    this.onPressed,
+  });
+
+  final bool ready;
+  final bool inverted;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = ready
+        ? FilledButton(
+            onPressed: null,
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Listo'),
+          )
+        : OutlinedButton(
+            onPressed: onPressed,
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white),
+            ),
+            child: const Text('Listo'),
+          );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Center(
+        child: RotatedBox(
+          quarterTurns: inverted ? 2 : 0,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 class _PlayerHeader extends StatelessWidget {
   const _PlayerHeader({
-    required this.side,
     required this.phase,
     required this.locked,
   });
 
-  final PlayerSide side;
   final GamePhase phase;
   final bool locked;
 
-  String get _hint {
-    if (locked) {
-      return switch (side.lastOutcome) {
-        SequenceOutcome.completed => 'Secuencia completa. Esperando turno.',
-        SequenceOutcome.fault => 'Secuencia rota. El rival gana el punto.',
-        SequenceOutcome.doubleTouch =>
-          'Toque doble. El rival gana el punto.',
-        SequenceOutcome.overuse =>
-          'Ficha agotada (4 usos). El rival gana el punto.',
-        _ => 'Esperando turno.',
-      };
-    }
-    return 'Tu turno. Siguiente: ${side.rally.expected.label}.';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final showPlayHud = phase == GamePhase.play;
+    if (phase != GamePhase.play || locked) {
+      return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Text(
-                side.name,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: locked ? Colors.white54 : Colors.white,
-                ),
-              ),
-              if (showPlayHud && !locked) ...[
-                const SizedBox(width: 8),
-                Chip(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  label: const Text('Turno'),
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                ),
-              ],
-            ],
-          ),
-          if (showPlayHud) ...[
-            _SequenceProgress(currentStep: side.rally.currentStep),
-            Text(
-              _hint,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ],
+      child: Chip(
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        label: const Text('Turno'),
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       ),
     );
   }
@@ -419,21 +566,24 @@ class _LockedBoard extends StatelessWidget {
     required this.locked,
     required this.child,
     this.inverted = false,
+    this.frozen = false,
   });
 
   final bool locked;
+  final bool frozen;
   final bool inverted;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final blocked = locked || frozen;
     return Stack(
       children: [
         Positioned.fill(
           child: AbsorbPointer(
-            absorbing: locked,
+            absorbing: blocked,
             child: Opacity(
-              opacity: locked ? 0.4 : 1,
+              opacity: blocked ? 0.4 : 1,
               child: child,
             ),
           ),
@@ -466,30 +616,161 @@ class _LockedBoard extends StatelessWidget {
   }
 }
 
-class _SequenceProgress extends StatelessWidget {
-  const _SequenceProgress({required this.currentStep});
+class _SidelineBoard extends StatelessWidget {
+  const _SidelineBoard({this.message});
 
-  final int currentStep;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 4,
-      children: [
-        for (var i = 0; i < RallySequence.steps.length; i++)
-          Chip(
-            visualDensity: VisualDensity.compact,
-            label: Text(RallySequence.steps[i].label),
-            padding: EdgeInsets.zero,
-            backgroundColor: i < currentStep
-                ? Theme.of(context).colorScheme.primaryContainer
-                : null,
-            side: i == currentStep
-                ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2)
-                : null,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: RotatedBox(
+          quarterTurns: 3,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: AnimatedOpacity(
+                opacity: message == null ? 0 : 1,
+                duration: const Duration(milliseconds: 120),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    message ?? '',
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-      ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlusOneBurst extends StatefulWidget {
+  const _PlusOneBurst({this.inverted = false});
+
+  final bool inverted;
+
+  @override
+  State<_PlusOneBurst> createState() => _PlusOneBurstState();
+}
+
+class _PlusOneBurstState extends State<_PlusOneBurst>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _glow;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    )..repeat(reverse: true);
+    _scale = Tween<double>(begin: 0.92, end: 1.22).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    _glow = Tween<double>(begin: 0.45, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFFFE082);
+    const core = Color(0xFFFF6F00);
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Center(
+            child: Transform.scale(
+              scale: _scale.value,
+              child: RotatedBox(
+                quarterTurns: widget.inverted ? 2 : 0,
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        gold.withValues(alpha: 0.95 * _glow.value),
+                        core.withValues(alpha: 0.7 * _glow.value),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.15, 0.45, 1],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: gold.withValues(alpha: 0.85 * _glow.value),
+                        blurRadius: 28,
+                        spreadRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Text(
+                          '+1',
+                          style: TextStyle(
+                            fontSize: 92,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                            foreground: Paint()
+                              ..style = PaintingStyle.stroke
+                              ..strokeWidth = 10
+                              ..color = const Color(0xFF3E1A00),
+                          ),
+                        ),
+                        const Text(
+                          '+1',
+                          style: TextStyle(
+                            fontSize: 92,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                            color: gold,
+                            shadows: [
+                              Shadow(
+                                color: Color(0xFFFFF59D),
+                                blurRadius: 18,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

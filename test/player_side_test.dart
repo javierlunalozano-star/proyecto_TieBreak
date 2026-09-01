@@ -48,4 +48,24 @@ void main() {
     expect(side.tryPlayMove(14), SequenceOutcome.progress);
     expect(tile.useCount, 1);
   });
+
+  test('en cambio de líbero solo se permite un movimiento', () {
+    final side = PlayerSide(name: 'A');
+    expect(side.board.bench.kind, TileKind.libero);
+    expect(side.onSubstitutionTap(0), isTrue);
+    expect(side.ready, isTrue);
+    expect(side.board.cells[0]?.kind, TileKind.libero);
+    expect(side.onSubstitutionTap(0), isFalse);
+    expect(side.board.cells[0]?.kind, TileKind.libero);
+  });
+
+  test('listo bloquea el cambio de líbero y no se puede deshacer', () {
+    final side = PlayerSide(name: 'A');
+    side.confirmReady();
+    expect(side.ready, isTrue);
+    side.confirmReady();
+    expect(side.ready, isTrue);
+    expect(side.onSubstitutionTap(0), isFalse);
+    expect(side.board.bench.kind, TileKind.libero);
+  });
 }

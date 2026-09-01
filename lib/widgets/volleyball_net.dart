@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'puzzle_grid.dart';
 
-/// Franja horizontal que simula la red sobre el azul de la pista.
+/// Franja horizontal que simula la red sobre el terracota de la pista.
 class VolleyballNet extends StatelessWidget {
   const VolleyballNet({super.key, this.height = CourtLook.netHeight});
 
@@ -27,7 +27,7 @@ class _NetPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = CourtLook.blue,
+      Paint()..color = CourtLook.cell,
     );
 
     final tape = Paint()..color = Colors.white;
@@ -44,7 +44,7 @@ class _NetPainter extends CustomPainter {
       tape,
     );
 
-    const cell = 6.5;
+    const cell = 14.0;
     for (var x = 0.0; x <= size.width; x += cell) {
       canvas.drawLine(
         Offset(x, tapeH),
