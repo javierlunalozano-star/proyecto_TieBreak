@@ -7,4 +7,14 @@ enum GamePhase {
 
   /// Solo se deslizan fichas adyacentes al hueco.
   play,
+
+  /// Un jugador ha llegado a 15 puntos.
+  finished;
+
+  String get label => switch (this) {
+    GamePhase.setup => 'Organización',
+    GamePhase.substitution => 'Cambio de líbero',
+    GamePhase.play => 'Juego',
+    GamePhase.finished => 'Final',
+  };
 }

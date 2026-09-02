@@ -7,6 +7,8 @@ import 'game/game_phase.dart';
 import 'game/player_side.dart';
 import 'game/puzzle_board.dart';
 import 'game/rally_sequence.dart';
+import 'widgets/cover_page.dart';
+import 'widgets/how_to_play_page.dart';
 import 'widgets/puzzle_grid.dart';
 import 'widgets/scoreboard.dart';
 import 'widgets/volleyball_net.dart';
@@ -21,13 +23,35 @@ class TieBreakApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TieBreak',
+      title: 'TieBreak Volleyball',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
         useMaterial3: true,
       ),
-      home: const PuzzlePage(),
+      home: Builder(
+        builder: (context) {
+          return CoverPage(
+            onPlay: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (howToContext) {
+                    return HowToPlayPage(
+                      onContinue: () {
+                        Navigator.of(howToContext).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const PuzzlePage(),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -46,6 +70,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
   late PlayerSide _active;
   String? _sidelineMessage;
   PlayerSide? _plusOneSide;
+  PlayerSide? _winner;
   Timer? _plusOneTimer;
 
   @override
@@ -83,8 +108,13 @@ class _PuzzlePageState extends State<PuzzlePage> {
     if (side.ready) return;
     setState(() {
       side.confirmReady();
-      _advanceIfBothReady();
+      if (_phase == GamePhase.substitution) {
+        _advanceIfBothReady();
+      }
     });
+    if (_phase == GamePhase.setup && _player.ready && _opponent.ready) {
+      _startSubstitution(firstPlay: true);
+    }
   }
 
   void _advanceIfBothReady() {
@@ -94,7 +124,10 @@ class _PuzzlePageState extends State<PuzzlePage> {
   }
 
   void _onCellTap(PlayerSide side, int index) {
+    if (_phase == GamePhase.finished) return;
+
     if (_phase == GamePhase.setup) {
+      if (side.ready) return;
       setState(() => side.onSetupTap(index));
       return;
     }
@@ -116,16 +149,27 @@ class _PuzzlePageState extends State<PuzzlePage> {
         _showSidelineMessage('Ataque del ${side.name}');
         _passTurn(side);
       } else if (outcome != null && outcome.awardsPointToOpponent) {
-        final scorer = _other(side);
-        scorer.score++;
-        _showPlusOne(scorer);
-        side.rally = RallySequence();
-        _active = side;
-        _opponent.beginSubstitution();
-        _player.beginSubstitution();
-        _phase = GamePhase.substitution;
+        _awardPoint(to: _other(side), from: side);
       }
     });
+  }
+
+  void _awardPoint({required PlayerSide to, required PlayerSide from}) {
+    to.score++;
+    _showPlusOne(to);
+    _opponent.board.resetUseCounts();
+    _player.board.resetUseCounts();
+    if (to.hasWon) {
+      _winner = to;
+      _phase = GamePhase.finished;
+      _showSidelineMessage('Victoria de ${to.name}');
+      return;
+    }
+    from.rally = RallySequence();
+    _active = from;
+    _opponent.beginSubstitution();
+    _player.beginSubstitution();
+    _phase = GamePhase.substitution;
   }
 
   void _showSidelineMessage(String text) {
@@ -147,38 +191,20 @@ class _PuzzlePageState extends State<PuzzlePage> {
     _active.rally = RallySequence();
   }
 
-  String get _instruction {
-    return switch (_phase) {
-      GamePhase.setup =>
-        'Organiza las fichas de la cuadrícula. El líbero no se puede mover en esta fase.',
-      GamePhase.substitution =>
-        'Cambio de líbero: un único cambio o pulsa Listo. Esa decisión no se puede deshacer.',
-      GamePhase.play =>
-        'Completa Defensa → Colocación → Ataque para ceder el turno. Si fallas, usas la misma ficha dos veces seguidas o mueves una ficha que ya tiene 4 usos, el rival gana el punto.',
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final isSetup = _phase == GamePhase.setup;
     final isPlay = _phase == GamePhase.play;
     final isSubstitution = _phase == GamePhase.substitution;
+    final isFinished = _phase == GamePhase.finished;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('TieBreak'),
-        centerTitle: true,
-      ),
       body: SafeArea(
-        child: Padding(
+        child: Stack(
+          children: [
+            Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           child: Column(
             children: [
-              Text(
-                _instruction,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 8),
               Expanded(
                 child: DecoratedBox(
                   decoration: const BoxDecoration(
@@ -187,14 +213,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    child: Column(
-                      children: [
-                        _PlayerHeader(
-                          phase: _phase,
-                          locked: isPlay && !identical(_active, _opponent),
-                        ),
-                        Expanded(
-                          child: LayoutBuilder(
+                    child: LayoutBuilder(
                             builder: (context, constraints) {
                               const benchW = 108.0;
                               const benchGap = 8.0;
@@ -227,6 +246,7 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                       width: msgW,
                                       height: fieldH,
                                       child: _SidelineBoard(
+                                        phase: _phase,
                                         message: _sidelineMessage,
                                       ),
                                     ),
@@ -259,8 +279,11 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                                             _active,
                                                             _opponent,
                                                           ),
-                                                      frozen: isSubstitution &&
-                                                          _opponent.ready,
+                                                      frozen: (isSetup &&
+                                                              _opponent.ready) ||
+                                                          (isSubstitution &&
+                                                              _opponent.ready) ||
+                                                          isFinished,
                                                       child: PuzzleCourt(
                                                         board: _opponent.board,
                                                         inverted: true,
@@ -304,8 +327,11 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                                             _active,
                                                             _player,
                                                           ),
-                                                      frozen: isSubstitution &&
-                                                          _player.ready,
+                                                      frozen: (isSetup &&
+                                                              _player.ready) ||
+                                                          (isSubstitution &&
+                                                              _player.ready) ||
+                                                          isFinished,
                                                       child: PuzzleCourt(
                                                         board: _player.board,
                                                         showUseCount: isPlay,
@@ -354,10 +380,16 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                               inverted: true,
                                               locked: isPlay &&
                                                   !identical(_active, _opponent),
-                                              showReady: isSubstitution,
+                                              showReady: isSetup || isSubstitution,
+                                              readyLabel: isSetup
+                                                  ? 'Empezar juego'
+                                                  : 'Listo',
                                               ready: _opponent.ready,
                                               onReady: () =>
                                                   _confirmReady(_opponent),
+                                              setupSwapsLeft: isSetup
+                                                  ? _opponent.setupSwapsLeft
+                                                  : null,
                                               bench: PuzzleBench(
                                                 board: _opponent.board,
                                                 inverted: true,
@@ -382,10 +414,16 @@ class _PuzzlePageState extends State<PuzzlePage> {
                                             child: _BenchLane(
                                               locked: isPlay &&
                                                   !identical(_active, _player),
-                                              showReady: isSubstitution,
+                                              showReady: isSetup || isSubstitution,
+                                              readyLabel: isSetup
+                                                  ? 'Empezar juego'
+                                                  : 'Listo',
                                               ready: _player.ready,
                                               onReady: () =>
                                                   _confirmReady(_player),
+                                              setupSwapsLeft: isSetup
+                                                  ? _player.setupSwapsLeft
+                                                  : null,
                                               bench: PuzzleBench(
                                                 board: _player.board,
                                                 showUseCount: isPlay,
@@ -418,24 +456,91 @@ class _PuzzlePageState extends State<PuzzlePage> {
                               );
                             },
                           ),
-                        ),
-                        _PlayerHeader(
-                          phase: _phase,
-                          locked: isPlay && !identical(_active, _player),
-                        ),
-                      ],
                     ),
                   ),
                 ),
-              ),
-              if (isSetup) ...[
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: () => _startSubstitution(firstPlay: true),
-                  child: const Text('Empezar juego'),
-                ),
-              ],
             ],
+          ),
+        ),
+            if (_winner != null) _MatchOverBanner(winner: _winner!),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MatchOverBanner extends StatelessWidget {
+  const _MatchOverBanner({required this.winner});
+
+  final PlayerSide winner;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: ColoredBox(
+        color: Colors.black.withValues(alpha: 0.5),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 340),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFF003D6B),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Victoria',
+                      style: TextStyle(
+                        color: CourtLook.cell,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        fontStyle: FontStyle.italic,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      winner.name,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${PlayerSide.winScore} puntos',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: CourtLook.cell,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('PORTADA'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -450,7 +555,9 @@ class _BenchLane extends StatelessWidget {
     this.inverted = false,
     this.showReady = false,
     this.ready = false,
+    this.readyLabel = 'Listo',
     this.onReady,
+    this.setupSwapsLeft,
   });
 
   final Widget bench;
@@ -458,18 +565,27 @@ class _BenchLane extends StatelessWidget {
   final bool inverted;
   final bool showReady;
   final bool ready;
+  final String readyLabel;
   final VoidCallback? onReady;
+  final int? setupSwapsLeft;
 
   @override
   Widget build(BuildContext context) {
     final blocked = locked || ready;
-    final readyButton = showReady
-        ? _SubstitutionReadyButton(
-            inverted: inverted,
-            ready: ready,
-            onPressed: onReady,
-          )
-        : null;
+    final extras = <Widget>[
+      if (setupSwapsLeft != null)
+        _SetupSwapsLabel(
+          inverted: inverted,
+          left: setupSwapsLeft!,
+        ),
+      if (showReady)
+        _SideReadyButton(
+          inverted: inverted,
+          ready: ready,
+          label: readyLabel,
+          onPressed: onReady,
+        ),
+    ];
     final body = AbsorbPointer(
       absorbing: blocked,
       child: Opacity(
@@ -479,49 +595,79 @@ class _BenchLane extends StatelessWidget {
     );
     return Column(
       children: [
-        if (inverted && readyButton != null) readyButton,
+        if (inverted) ...extras.reversed,
         Expanded(child: body),
-        if (!inverted && readyButton != null) readyButton,
+        if (!inverted) ...extras,
       ],
     );
   }
 }
 
-class _SubstitutionReadyButton extends StatelessWidget {
-  const _SubstitutionReadyButton({
+class _SetupSwapsLabel extends StatelessWidget {
+  const _SetupSwapsLabel({required this.left, required this.inverted});
+
+  final int left;
+  final bool inverted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Center(
+        child: RotatedBox(
+          quarterTurns: inverted ? 2 : 0,
+          child: Text(
+            '$left/${PlayerSide.maxSetupSwaps}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SideReadyButton extends StatelessWidget {
+  const _SideReadyButton({
     required this.ready,
     required this.inverted,
+    required this.label,
     this.onPressed,
   });
 
   final bool ready;
   final bool inverted;
+  final String label;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final style = ButtonStyle(
+      visualDensity: VisualDensity.compact,
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      ),
+      minimumSize: const WidgetStatePropertyAll(Size(0, 32)),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
     final child = ready
         ? FilledButton(
             onPressed: null,
-            style: FilledButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              minimumSize: const Size(0, 32),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text('Listo'),
+            style: style,
+            child: FittedBox(child: Text(label)),
           )
         : OutlinedButton(
             onPressed: onPressed,
-            style: OutlinedButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              minimumSize: const Size(0, 32),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white),
+            style: style.copyWith(
+              foregroundColor: const WidgetStatePropertyAll(Colors.white),
+              side: const WidgetStatePropertyAll(
+                BorderSide(color: Colors.white),
+              ),
             ),
-            child: const Text('Listo'),
+            child: FittedBox(child: Text(label)),
           );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -535,27 +681,46 @@ class _SubstitutionReadyButton extends StatelessWidget {
   }
 }
 
-class _PlayerHeader extends StatelessWidget {
-  const _PlayerHeader({
-    required this.phase,
-    required this.locked,
-  });
+class _SidelineBoard extends StatelessWidget {
+  const _SidelineBoard({required this.phase, this.message});
 
   final GamePhase phase;
-  final bool locked;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
-    if (phase != GamePhase.play || locked) {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Chip(
-        visualDensity: VisualDensity.compact,
-        padding: EdgeInsets.zero,
-        label: const Text('Turno'),
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+    final text = message == null || message!.isEmpty
+        ? phase.label
+        : '${phase.label} · $message';
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: RotatedBox(
+          quarterTurns: 3,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -612,51 +777,6 @@ class _LockedBoard extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _SidelineBoard extends StatelessWidget {
-  const _SidelineBoard({this.message});
-
-  final String? message;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.28),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: RotatedBox(
-          quarterTurns: 3,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: AnimatedOpacity(
-                opacity: message == null ? 0 : 1,
-                duration: const Duration(milliseconds: 120),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    message ?? '',
-                    maxLines: 1,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

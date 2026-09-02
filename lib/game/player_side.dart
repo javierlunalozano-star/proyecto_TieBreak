@@ -13,17 +13,29 @@ class PlayerSide {
   int? selectedIndex;
   SequenceOutcome? lastOutcome;
   bool ready = false;
+  int setupSwapCount = 0;
+
+  static const int maxSetupSwaps = 5;
+  static const int winScore = 15;
+
+  int get setupSwapsLeft => maxSetupSwaps - setupSwapCount;
+
+  bool get hasWon => score >= winScore;
 
   void onSetupTap(int index) {
     if (index == PuzzleBoard.benchIndex || board.slotHasLibero(index)) {
       return;
     }
     if (selectedIndex == null) {
+      if (setupSwapCount >= maxSetupSwaps) return;
       selectedIndex = index;
     } else if (selectedIndex == index) {
       selectedIndex = null;
     } else {
-      board.trySwapSlotsWithoutLibero(selectedIndex!, index);
+      if (setupSwapCount < maxSetupSwaps &&
+          board.trySwapSlotsWithoutLibero(selectedIndex!, index)) {
+        setupSwapCount++;
+      }
       selectedIndex = null;
     }
   }

@@ -143,4 +143,16 @@ void main() {
       isNot(ordered.cells.map((c) => c?.kind)),
     );
   });
+
+  test('resetear usos pone a cero cancha y banquillo', () {
+    final board = PuzzleBoard();
+    board.cells[0]!.useCount = 3;
+    board.cells[14]!.useCount = 4;
+    board.bench.useCount = 2;
+    board.resetUseCounts();
+    for (final tile in board.cells) {
+      expect(tile?.useCount ?? 0, 0);
+    }
+    expect(board.bench.useCount, 0);
+  });
 }

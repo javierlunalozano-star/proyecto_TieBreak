@@ -161,6 +161,13 @@ class PuzzleBoard {
     return false;
   }
 
+  void resetUseCounts() {
+    for (final tile in cells) {
+      tile?.useCount = 0;
+    }
+    bench.useCount = 0;
+  }
+
   /// Mueve la ficha en [index] al hueco si es adyacente.
   /// Devuelve la ficha movida, o `null` si el movimiento no es válido.
   PuzzleTile? trySlide(int index) {

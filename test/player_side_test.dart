@@ -68,4 +68,34 @@ void main() {
     expect(side.onSubstitutionTap(0), isFalse);
     expect(side.board.bench.kind, TileKind.libero);
   });
+
+  test('en organización solo se permiten 5 cambios', () {
+    final side = PlayerSide(name: 'A');
+    for (var i = 0; i < PlayerSide.maxSetupSwaps; i++) {
+      side.onSetupTap(0);
+      side.onSetupTap(1);
+    }
+    expect(side.setupSwapCount, PlayerSide.maxSetupSwaps);
+    expect(side.setupSwapsLeft, 0);
+
+    final kind0 = side.board.cells[0]!.kind;
+    final kind2 = side.board.cells[2]!.kind;
+    side.onSetupTap(0);
+    expect(side.selectedIndex, isNull);
+    side.onSetupTap(0);
+    side.onSetupTap(2);
+    expect(side.setupSwapCount, PlayerSide.maxSetupSwaps);
+    expect(side.board.cells[0]!.kind, kind0);
+    expect(side.board.cells[2]!.kind, kind2);
+  });
+
+  test('el primer jugador en 15 puntos gana', () {
+    final side = PlayerSide(name: 'A');
+    expect(side.score, 10);
+    expect(side.hasWon, isFalse);
+    side.score = PlayerSide.winScore - 1;
+    expect(side.hasWon, isFalse);
+    side.score = PlayerSide.winScore;
+    expect(side.hasWon, isTrue);
+  });
 }

@@ -293,9 +293,8 @@ class CourtLook {
   static const double lineWidth = 5;
   static const double netHeight = 48;
   static const double scoreboardHeight = 96;
-  static const double scoreboardNameBand = 18;
-  static const double scoreboardBlockHeight =
-      scoreboardHeight + 2 * scoreboardNameBand;
+  static const double scoreboardNameBand = 36;
+  static const double scoreboardBlockHeight = 180;
   static const double cellGap = 4;
   static const double cellRadius = 10;
 }

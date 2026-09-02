@@ -21,36 +21,21 @@ class CourtScoreboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nameStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+    const nameStyle = TextStyle(
       color: Colors.white,
-      fontWeight: FontWeight.bold,
-      height: 1.1,
+      fontWeight: FontWeight.w800,
+      fontSize: 22,
+      height: 1.05,
     );
     return SizedBox(
       height: CourtLook.scoreboardBlockHeight,
       width: double.infinity,
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            height: CourtLook.scoreboardNameBand,
-            child: Center(
-              child: RotatedBox(
-                quarterTurns: 2,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    leftName ?? '',
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    style: nameStyle,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
             height: CourtLook.scoreboardHeight,
-            width: double.infinity,
+            width: _thickness,
             child: Center(
               child: RotatedBox(
                 quarterTurns: 1,
@@ -107,21 +92,56 @@ class CourtScoreboard extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: 8),
           SizedBox(
-            height: CourtLook.scoreboardNameBand,
-            child: Center(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  rightName ?? '',
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  style: nameStyle,
+            width: CourtLook.scoreboardNameBand,
+            child: Column(
+              children: [
+                Expanded(
+                  child: _SideName(
+                    name: leftName ?? '',
+                    style: nameStyle,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: _SideName(
+                    name: rightName ?? '',
+                    style: nameStyle,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SideName extends StatelessWidget {
+  const _SideName({
+    required this.name,
+    required this.style,
+  });
+
+  final String name;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: RotatedBox(
+        quarterTurns: 1,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            name,
+            maxLines: 1,
+            softWrap: false,
+            style: style,
+          ),
+        ),
       ),
     );
   }
